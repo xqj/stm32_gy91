@@ -1,315 +1,350 @@
+/**
+ * Ciastkolog.pl (https://github.com/ciastkolog)
+ * 
+*/
+/**
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2016 sheinz (https://github.com/sheinz)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
 #include "bmp280.h"
-#include <stdlib.h>
-
-#define dig_T1 bmp280->T1
-#define dig_T2 bmp280->T2
-#define dig_T3 bmp280->T3
-#define dig_P1 bmp280->P1
-#define dig_P2 bmp280->P2
-#define dig_P3 bmp280->P3
-#define dig_P4 bmp280->P4
-#define dig_P5 bmp280->P5
-#define dig_P6 bmp280->P6
-#define dig_P7 bmp280->P7
-#define dig_P8 bmp280->P8
-#define dig_P9 bmp280->P9
-
-
 
 /**
-?* 在bmp280_init()函数里默认初始化t_standby为0.5ms，
-?* 温度和气压的采样精度设为最低，
-?* 滤波器系数设为最低，
-?* 并且进入sleep mode。
-?*/
-struct bmp280 *bmp280_init(I2C_HandleTypeDef I2cHandle)
-{
-    uint8_t bmp280_id;
-    uint8_t lsb, msb;
-    uint8_t ctrlmeas_reg, config_reg;
-    struct bmp280 *bmp280;
+ * BMP280 registers
+ */
+#define BMP280_REG_TEMP_XLSB   0xFC /* bits: 7-4 */
+#define BMP280_REG_TEMP_LSB    0xFB
+#define BMP280_REG_TEMP_MSB    0xFA
+#define BMP280_REG_TEMP        (BMP280_REG_TEMP_MSB)
+#define BMP280_REG_PRESS_XLSB  0xF9 /* bits: 7-4 */
+#define BMP280_REG_PRESS_LSB   0xF8
+#define BMP280_REG_PRESS_MSB   0xF7
+#define BMP280_REG_PRESSURE    (BMP280_REG_PRESS_MSB)
+#define BMP280_REG_CONFIG      0xF5 /* bits: 7-5 t_sb; 4-2 filter; 0 spi3w_en */
+#define BMP280_REG_CTRL        0xF4 /* bits: 7-5 osrs_t; 4-2 osrs_p; 1-0 mode */
+#define BMP280_REG_STATUS      0xF3 /* bits: 3 measuring; 0 im_update */
+#define BMP280_REG_CTRL_HUM    0xF2 /* bits: 2-0 osrs_h; */
+#define BMP280_REG_RESET       0xE0
+#define BMP280_REG_ID          0xD0
+#define BMP280_REG_CALIB       0x88
+#define BMP280_REG_HUM_CALIB   0x88
 
-    bmp280_id = bmp280_read_register(I2cHandle, BMP280_CHIPID_REG);
-    if(bmp280_id == 0x58) {
-        bmp280 = malloc(sizeof(struct bmp280));
+#define BMP280_RESET_VALUE     0xB6
 
-        bmp280->I2cHandle = I2cHandle;
-        bmp280->mode = BMP280_SLEEP_MODE;
-        bmp280->t_sb = BMP280_T_SB1;
-        bmp280->p_oversampling = BMP280_P_MODE_1;
-        bmp280->t_oversampling = BMP280_T_MODE_1;
-        bmp280->filter_coefficient = BMP280_FILTER_MODE_1;
-    } else {
-        //printf("Read BMP280 id error!\r\n");
-        return NULL;
-    }
 
-    /* read the temperature calibration parameters */
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_T1_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_T1_MSB_REG);
-    dig_T1 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_T2_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_T2_MSB_REG);
-    dig_T2 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_T3_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_T3_MSB_REG);
-    dig_T3 = msb << 8 | lsb;
 
-    /* read the pressure calibration parameters */
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P1_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P1_MSB_REG);
-    dig_P1 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P2_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P2_MSB_REG);
-    dig_P2 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P3_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P3_MSB_REG);
-    dig_P3 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P4_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P4_MSB_REG);
-    dig_P4 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P5_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P5_MSB_REG);
-    dig_P5 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P6_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P6_MSB_REG);
-    dig_P6 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P7_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P7_MSB_REG);
-    dig_P7 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P8_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P8_MSB_REG);
-    dig_P8 = msb << 8 | lsb;
-    lsb = bmp280_read_register(I2cHandle, BMP280_DIG_P9_LSB_REG);
-    msb = bmp280_read_register(I2cHandle, BMP280_DIG_P9_MSB_REG);
-    dig_P9 = msb << 8 | lsb;
-
-    bmp280_reset(bmp280);
-
-    ctrlmeas_reg = bmp280->t_oversampling << 5 | bmp280->p_oversampling << 2 | bmp280->mode;
-    config_reg = bmp280->t_sb << 5 | bmp280->filter_coefficient << 2;
-
-    bmp280_write_register(I2cHandle, BMP280_CTRLMEAS_REG, ctrlmeas_reg);
-    bmp280_write_register(I2cHandle, BMP280_CONFIG_REG, config_reg);
-
-    HAL_Delay(100);
-
-    return bmp280;
+void bmp280_init_default_params(bmp280_params_t *params) {
+	params->mode = BMP280_MODE_NORMAL;
+	params->filter = BMP280_FILTER_OFF;
+	params->oversampling_pressure = BMP280_STANDARD;
+	params->oversampling_temperature = BMP280_STANDARD;
+	params->oversampling_humidity = BMP280_STANDARD;
+	params->standby = BMP280_STANDBY_250;
 }
 
-void bmp280_reset(struct bmp280 *bmp280)
-{
-    bmp280_write_register(bmp280->I2cHandle, BMP280_RESET_REG, BMP280_RESET_VALUE);
+static bool read_register16(BMP280_HandleTypedef *dev, uint8_t addr, uint16_t *value) {
+	uint16_t tx_buff;
+	uint8_t rx_buff[2];
+	tx_buff = (dev->addr << 1);
+
+	if (HAL_I2C_Mem_Read(dev->i2c, tx_buff, addr, 1, rx_buff, 2, 5000)
+			== HAL_OK) {
+		*value = (uint16_t) ((rx_buff[1] << 8) | rx_buff[0]);
+		return true;
+	} else
+		return false;
+
 }
 
-void bmp280_set_standby_time(struct bmp280 *bmp280, BMP280_T_SB t_standby)
-{
-    uint8_t config_reg;
+static inline int read_data(BMP280_HandleTypedef *dev, uint8_t addr, uint8_t *value,
+		uint8_t len) {
+	uint16_t tx_buff;
+	tx_buff = (dev->addr << 1);
+	if (HAL_I2C_Mem_Read(dev->i2c, tx_buff, addr, 1, value, len, 5000) == HAL_OK)
+		return 0;
+	else
+		return 1;
 
-    bmp280->t_sb = t_standby;
-    config_reg = bmp280->t_sb << 5 | bmp280->filter_coefficient << 2;
-
-    bmp280_write_register(bmp280->I2cHandle, BMP280_CONFIG_REG, config_reg);
 }
 
-void bmp280_set_work_mode(struct bmp280 *bmp280, BMP280_WORK_MODE mode)
-{
-    uint8_t ctrlmeas_reg;
+static bool read_calibration_data(BMP280_HandleTypedef *dev) {
 
-    bmp280->mode = mode;
-    ctrlmeas_reg = bmp280->t_oversampling << 5 | bmp280->p_oversampling << 2 | bmp280->mode;
+	if (read_register16(dev, 0x88, &dev->dig_T1)
+			&& read_register16(dev, 0x8a, (uint16_t *) &dev->dig_T2)
+			&& read_register16(dev, 0x8c, (uint16_t *) &dev->dig_T3)
+			&& read_register16(dev, 0x8e, &dev->dig_P1)
+			&& read_register16(dev, 0x90, (uint16_t *) &dev->dig_P2)
+			&& read_register16(dev, 0x92, (uint16_t *) &dev->dig_P3)
+			&& read_register16(dev, 0x94, (uint16_t *) &dev->dig_P4)
+			&& read_register16(dev, 0x96, (uint16_t *) &dev->dig_P5)
+			&& read_register16(dev, 0x98, (uint16_t *) &dev->dig_P6)
+			&& read_register16(dev, 0x9a, (uint16_t *) &dev->dig_P7)
+			&& read_register16(dev, 0x9c, (uint16_t *) &dev->dig_P8)
+			&& read_register16(dev, 0x9e,
+					(uint16_t *) &dev->dig_P9)) {
 
-    bmp280_write_register(bmp280->I2cHandle, BMP280_CTRLMEAS_REG, ctrlmeas_reg);
+		return true;
+	}
+
+	return false;
 }
 
-void bmp280_set_temperature_oversampling_mode(struct bmp280 *bmp280, BMP280_T_OVERSAMPLING t_osl)
-{
-    uint8_t ctrlmeas_reg;
+static bool read_hum_calibration_data(BMP280_HandleTypedef *dev) {
+	uint16_t h4, h5;
 
-    bmp280->t_oversampling = t_osl;
-    ctrlmeas_reg = bmp280->t_oversampling << 5 | bmp280->p_oversampling << 2 | bmp280->mode;
+	if (!read_data(dev, 0xa1, &dev->dig_H1, 1)
+			&& read_register16(dev, 0xe1, (uint16_t *) &dev->dig_H2)
+			&& !read_data(dev, 0xe3, &dev->dig_H3, 1)
+			&& read_register16(dev, 0xe4, &h4)
+			&& read_register16(dev, 0xe5, &h5)
+			&& !read_data(dev, 0xe7, (uint8_t *) &dev->dig_H6, 1)) {
+		dev->dig_H4 = (h4 & 0x00ff) << 4 | (h4 & 0x0f00) >> 8;
+		dev->dig_H5 = h5 >> 4;
 
-    bmp280_write_register(bmp280->I2cHandle, BMP280_CTRLMEAS_REG, ctrlmeas_reg);
+		return true;
+	}
+
+	return false;
 }
 
-void bmp280_set_pressure_oversampling_mode(struct bmp280 *bmp280, BMP280_P_OVERSAMPLING p_osl)
-{
-    uint8_t ctrlmeas_reg;
+static int write_register8(BMP280_HandleTypedef *dev, uint8_t addr, uint8_t value) {
+	uint16_t tx_buff;
 
-    bmp280->t_oversampling = p_osl;
-    ctrlmeas_reg = bmp280->t_oversampling << 5 | bmp280->p_oversampling << 2 | bmp280->mode;
+	tx_buff = (dev->addr << 1);
 
-    bmp280_write_register(bmp280->I2cHandle, BMP280_CTRLMEAS_REG, ctrlmeas_reg);
+	if (HAL_I2C_Mem_Write(dev->i2c, tx_buff, addr, 1, &value, 1, 10000) == HAL_OK)
+		return false;
+	else
+		return true;
 }
 
-void bmp280_set_filter_mode(struct bmp280 *bmp280, BMP280_FILTER_COEFFICIENT f_coefficient)
-{
-    uint8_t config_reg;
+bool bmp280_init(BMP280_HandleTypedef *dev, bmp280_params_t *params) {
 
-    bmp280->filter_coefficient = f_coefficient;
-    config_reg = bmp280->t_sb << 5 | bmp280->filter_coefficient << 2;
+	if (dev->addr != BMP280_I2C_ADDRESS_0
+			&& dev->addr != BMP280_I2C_ADDRESS_1) {
 
-    bmp280_write_register(bmp280->I2cHandle, BMP280_CONFIG_REG, config_reg);
+		return false;
+	}
+
+	if (read_data(dev, BMP280_REG_ID, &dev->id, 1)) {
+		return false;
+	}
+
+	if (dev->id != BMP280_CHIP_ID && dev->id != BME280_CHIP_ID) {
+
+		return false;
+	}
+
+	// Soft reset.
+	if (write_register8(dev, BMP280_REG_RESET, BMP280_RESET_VALUE)) {
+		return false;
+	}
+
+	// Wait until finished copying over the NVP data.
+	while (1) {
+		uint8_t status;
+		if (!read_data(dev, BMP280_REG_STATUS, &status, 1)
+				&& (status & 1) == 0)
+			break;
+	}
+
+	if (!read_calibration_data(dev)) {
+		return false;
+	}
+
+	if (dev->id == BME280_CHIP_ID && !read_hum_calibration_data(dev)) {
+		return false;
+	}
+
+	uint8_t config = (params->standby << 5) | (params->filter << 2);
+	if (write_register8(dev, BMP280_REG_CONFIG, config)) {
+		return false;
+	}
+
+	if (params->mode == BMP280_MODE_FORCED) {
+		params->mode = BMP280_MODE_SLEEP;  // initial mode for forced is sleep
+	}
+
+	uint8_t ctrl = (params->oversampling_temperature << 5)
+			| (params->oversampling_pressure << 2) | (params->mode);
+
+	if (dev->id == BME280_CHIP_ID) {
+		// Write crtl hum reg first, only active after write to BMP280_REG_CTRL.
+		uint8_t ctrl_hum = params->oversampling_humidity;
+		if (write_register8(dev, BMP280_REG_CTRL_HUM, ctrl_hum)) {
+			return false;
+		}
+	}
+
+	if (write_register8(dev, BMP280_REG_CTRL, ctrl)) {
+		return false;
+	}
+
+	return true;
 }
 
-/* Returns temperature in DegC, double precision. Output value of “51.23” equals 51.23 DegC. */
-static double bmp280_compensate_temperature_double(struct bmp280 *bmp280, int32_t adc_T)
-{
-    double var1, var2, temperature;
-
-    var1 = (((double) adc_T) / 16384.0 - ((double) dig_T1) / 1024.0)
-           * ((double) dig_T2);
-    var2 = ((((double) adc_T) / 131072.0 - ((double) dig_T1) / 8192.0)
-            * (((double) adc_T) / 131072.0 - ((double) dig_T1) / 8192.0))
-           * ((double) dig_T3);
-    bmp280->t_fine = (int32_t) (var1 + var2);
-    temperature = (var1 + var2) / 5120.0;
-
-    return temperature;
+bool bmp280_force_measurement(BMP280_HandleTypedef *dev) {
+	uint8_t ctrl;
+	if (read_data(dev, BMP280_REG_CTRL, &ctrl, 1)){
+		return false;
+	}
+	// clear two lower bits
+	ctrl&=~0x03;
+	ctrl|= BMP280_MODE_FORCED;
+	if (write_register8(dev, BMP280_REG_CTRL, ctrl)) {
+		return false;
+	}
+	return true;
 }
 
-
-/* Returns pressure in Pa as double. Output value of “96386.2” equals 96386.2 Pa = 963.862 hPa */
-static double bmp280_compensate_pressure_double(struct bmp280 *bmp280, int32_t adc_P)
-{
-    double var1, var2, pressure;
-
-    var1 = ((double) bmp280->t_fine / 2.0) - 64000.0;
-    var2 = var1 * var1 * ((double) dig_P6) / 32768.0;
-    var2 = var2 + var1 * ((double) dig_P5) * 2.0;
-    var2 = (var2 / 4.0) + (((double) dig_P4) * 65536.0);
-    var1 = (((double) dig_P3) * var1 * var1 / 524288.0
-            + ((double) dig_P2) * var1) / 524288.0;
-    var1 = (1.0 + var1 / 32768.0) * ((double) dig_P1);
-
-    if (var1 == 0.0) {
-        return 0; // avoid exception caused by division by zero
-    }
-
-    pressure = 1048576.0 - (double) adc_P;
-    pressure = (pressure - (var2 / 4096.0)) * 6250.0 / var1;
-    var1 = ((double) dig_P9) * pressure * pressure / 2147483648.0;
-    var2 = pressure * ((double) dig_P8) / 32768.0;
-    pressure = pressure + (var1 + var2 + ((double) dig_P7)) / 16.0;
-
-    return pressure;
-}
-
-#if 0
-static int32_t bmp280_compensate_temperature_int32(struct bmp280 *bmp280, int32_t adc_T)
-{
-    int32_t var1, var2, temperature;
-
-    var1 = ((((adc_T>>3) - ((int32_t)dig_T1<<1))) * ((int32_t)dig_T2)) >> 11;
-    var2 = (((((adc_T>>4) - ((int32_t)dig_T1)) * ((adc_T>>4) - ((int32_t)dig_T1))) >> 12) * ((int32_t)dig_T3)) >> 14;
-    bmp280->t_fine = var1 + var2;
-    temperature = (bmp280->t_fine * 5 + 128) >> 8;
-
-    return temperature;
-}
-
-static uint32_t bmp280_compensate_pressure_int64(struct bmp280 *bmp280, int32_t adc_P)
-{
-    int64_t var1, var2, pressure;
-
-    var1 = ((int64_t)bmp280->t_fine) - 128000;
-    var2 = var1 * var1 * (int64_t)dig_P6;
-    var2 = var2 + ((var1*(int64_t)dig_P5)<<17);
-    var2 = var2 + (((int64_t)dig_P4)<<35);
-    var1 = ((var1 * var1 * (int64_t)dig_P3)>>8) + ((var1 * (int64_t)dig_P2)<<12);
-    var1 = (((((int64_t)1)<<47)+var1))*((int64_t)dig_P1)>>33;
-    if (var1 == 0)
-    {
-        return 0; // avoid exception caused by division by zero
-    }
-
-    pressure = 1048576-adc_P;
-    pressure = (((pressure<<31)-var2)*3125)/var1;
-    var1 = (((int64_t)dig_P9) * (pressure>>13) * (pressure>>13)) >> 25;
-    var2 = (((int64_t)dig_P8) * pressure) >> 19;
-    pressure = ((pressure + var1 + var2) >> 8) + (((int64_t)dig_P7)<<4);
-
-    return (uint32_t)pressure;
-}
-#endif
-
-/* Returns temperature in DegC, double precision. Output value of “51.23” equals 51.23 DegC. */
-double bmp280_get_temperature(struct bmp280 *bmp280)
-{
-    uint8_t lsb, msb, xlsb;
-    int32_t adc_T;
-    double temperature;
-
-    xlsb = bmp280_read_register(bmp280->I2cHandle, BMP280_TEMPERATURE_XLSB_REG);
-    lsb = bmp280_read_register(bmp280->I2cHandle, BMP280_TEMPERATURE_LSB_REG);
-    msb = bmp280_read_register(bmp280->I2cHandle, BMP280_TEMPERATURE_MSB_REG);
-
-    adc_T = (msb << 12) | (lsb << 4) | (xlsb >> 4);
-    temperature = bmp280_compensate_temperature_double(bmp280, adc_T);
-
-    return temperature;
-}
-
-/* Returns pressure in Pa as double. Output value of “96386.2” equals 96386.2 Pa = 963.862 hPa */
-double bmp280_get_pressure(struct bmp280 *bmp280)
-{
-    uint8_t lsb, msb, xlsb;
-    int32_t adc_P;
-    double pressure;
-
-
-    xlsb = bmp280_read_register(bmp280->I2cHandle, BMP280_PRESSURE_XLSB_REG);
-    lsb = bmp280_read_register(bmp280->I2cHandle, BMP280_PRESSURE_LSB_REG);
-    msb = bmp280_read_register(bmp280->I2cHandle, BMP280_PRESSURE_MSB_REG);
-
-    adc_P = (msb << 12) | (lsb << 4) | (xlsb >> 4);
-    pressure = bmp280_compensate_pressure_double(bmp280, adc_P);
-
-    return pressure;
+bool bmp280_is_measuring(BMP280_HandleTypedef *dev) {
+	uint8_t status;
+	if (read_data(dev, BMP280_REG_STATUS, &status, 1))
+		return false;
+	if (status & (1 << 3)) {
+		return true;
+	}
+	return false;
 }
 
 /**
-?* 仅在BMP280被设置为normal mode后，
-?* 可使用该接口直接读取温度和气压。
-?*/
-void bmp280_get_temperature_and_pressure(struct bmp280 *bmp280, double *temperature, double *pressure)
-{
-    *temperature = bmp280_get_temperature(bmp280);
-    *pressure = bmp280_get_pressure(bmp280);
+ * Compensation algorithm is taken from BMP280 datasheet.
+ *
+ * Return value is in degrees Celsius.
+ */
+static inline int32_t compensate_temperature(BMP280_HandleTypedef *dev, int32_t adc_temp,
+		int32_t *fine_temp) {
+	int32_t var1, var2;
+
+	var1 = ((((adc_temp >> 3) - ((int32_t) dev->dig_T1 << 1)))
+			* (int32_t) dev->dig_T2) >> 11;
+	var2 = (((((adc_temp >> 4) - (int32_t) dev->dig_T1)
+			* ((adc_temp >> 4) - (int32_t) dev->dig_T1)) >> 12)
+			* (int32_t) dev->dig_T3) >> 14;
+
+	*fine_temp = var1 + var2;
+	return (*fine_temp * 5 + 128) >> 8;
 }
 
 /**
-?* 当BMP280被设置为forced mode后，
-?* 可使用该接口直接读取温度和气压。
-?*/
-void bmp280_forced_mode_get_temperature_and_pressure(struct bmp280 *bmp280, double *temperature, double *pressure)
-{
-    bmp280_set_work_mode(bmp280, BMP280_FORCED_MODE);
+ * Compensation algorithm is taken from BMP280 datasheet.
+ *
+ * Return value is in Pa, 24 integer bits and 8 fractional bits.
+ */
+static inline uint32_t compensate_pressure(BMP280_HandleTypedef *dev, int32_t adc_press,
+		int32_t fine_temp) {
+	int64_t var1, var2, p;
 
-    HAL_Delay(100);
+	var1 = (int64_t) fine_temp - 128000;
+	var2 = var1 * var1 * (int64_t) dev->dig_P6;
+	var2 = var2 + ((var1 * (int64_t) dev->dig_P5) << 17);
+	var2 = var2 + (((int64_t) dev->dig_P4) << 35);
+	var1 = ((var1 * var1 * (int64_t) dev->dig_P3) >> 8)
+			+ ((var1 * (int64_t) dev->dig_P2) << 12);
+	var1 = (((int64_t) 1 << 47) + var1) * ((int64_t) dev->dig_P1) >> 33;
 
-    bmp280_get_temperature_and_pressure(bmp280, temperature, pressure);
+	if (var1 == 0) {
+		return 0;  // avoid exception caused by division by zero
+	}
+
+	p = 1048576 - adc_press;
+	p = (((p << 31) - var2) * 3125) / var1;
+	var1 = ((int64_t) dev->dig_P9 * (p >> 13) * (p >> 13)) >> 25;
+	var2 = ((int64_t) dev->dig_P8 * p) >> 19;
+
+	p = ((p + var1 + var2) >> 8) + ((int64_t) dev->dig_P7 << 4);
+	return p;
 }
 
 /**
-?* 此demo使用forced mode以1s为周期，
-?* 对温度和气压进行数据采集并打印。
-?*/
-void bmp280_demo(I2C_HandleTypeDef I2cHandle, double *temperature, double *pressure)
-{
-    struct bmp280 *bmp280;
-    bmp280 = bmp280_init(I2cHandle);
+ * Compensation algorithm is taken from BME280 datasheet.
+ *
+ * Return value is in Pa, 24 integer bits and 8 fractional bits.
+ */
+static inline uint32_t compensate_humidity(BMP280_HandleTypedef *dev, int32_t adc_hum,
+		int32_t fine_temp) {
+	int32_t v_x1_u32r;
 
-    if(bmp280 != NULL) {
-        while(1) {
-            bmp280_forced_mode_get_temperature_and_pressure(bmp280, temperature, pressure);
-            //printf("temperature=%ld?? pressure=%ld\r\n", (int32_t)*temperature, (uint32_t)*pressure);
-
-            HAL_Delay(1000);
-        }
-    }
-		//else
-       // printf("create bmp280 error!\r\n");
+	v_x1_u32r = fine_temp - (int32_t) 76800;
+	v_x1_u32r = ((((adc_hum << 14) - ((int32_t) dev->dig_H4 << 20)
+			- ((int32_t) dev->dig_H5 * v_x1_u32r)) + (int32_t) 16384) >> 15)
+			* (((((((v_x1_u32r * (int32_t) dev->dig_H6) >> 10)
+					* (((v_x1_u32r * (int32_t) dev->dig_H3) >> 11)
+							+ (int32_t) 32768)) >> 10) + (int32_t) 2097152)
+					* (int32_t) dev->dig_H2 + 8192) >> 14);
+	v_x1_u32r = v_x1_u32r
+			- (((((v_x1_u32r >> 15) * (v_x1_u32r >> 15)) >> 7)
+					* (int32_t) dev->dig_H1) >> 4);
+	v_x1_u32r = v_x1_u32r < 0 ? 0 : v_x1_u32r;
+	v_x1_u32r = v_x1_u32r > 419430400 ? 419430400 : v_x1_u32r;
+	return v_x1_u32r >> 12;
 }
 
+bool bmp280_read_fixed(BMP280_HandleTypedef *dev, int32_t *temperature, uint32_t *pressure,
+		uint32_t *humidity) {
+	int32_t adc_pressure;
+	int32_t adc_temp;
+	uint8_t data[8];
 
+	// Only the BME280 supports reading the humidity.
+	if (dev->id != BME280_CHIP_ID) {
+		if (humidity)
+			*humidity = 0;
+		humidity = NULL;
+	}
+
+	// Need to read in one sequence to ensure they match.
+	size_t size = humidity ? 8 : 6;
+	if (read_data(dev, 0xf7, data, size)) {
+		return false;
+	}
+
+	adc_pressure = data[0] << 12 | data[1] << 4 | data[2] >> 4;
+	adc_temp = data[3] << 12 | data[4] << 4 | data[5] >> 4;
+
+	int32_t fine_temp;
+	*temperature = compensate_temperature(dev, adc_temp, &fine_temp);
+	*pressure = compensate_pressure(dev, adc_pressure, fine_temp);
+
+	if (humidity) {
+		int32_t adc_humidity = data[6] << 8 | data[7];
+		*humidity = compensate_humidity(dev, adc_humidity, fine_temp);
+	}
+
+	return true;
+}
+
+bool bmp280_read_float(BMP280_HandleTypedef *dev, float *temperature, float *pressure,float *humidity) {
+	int32_t fixed_temperature;
+	uint32_t fixed_pressure;
+	uint32_t fixed_humidity;
+	if (bmp280_read_fixed(dev, &fixed_temperature, &fixed_pressure,
+			humidity ? &fixed_humidity : NULL)) {
+		*temperature = (float) fixed_temperature / 100;
+		*pressure = (float) fixed_pressure / 256;
+		if (humidity)
+			*humidity = (float) fixed_humidity / 1024;
+		return true;
+	}
+
+	return false;
+}

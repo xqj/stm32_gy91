@@ -1,178 +1,173 @@
-#include "main.h"
+
+
+
 #ifndef __BMP280_H__
 #define __BMP280_H__
- 
- 
-#define BMP280_ADDRESS 0xEC
- 
-#define BMP280_RESET_VALUE 0xB6
- 
-/*calibration parameters */
-#define BMP280_DIG_T1_LSB_REG                0x88
-#define BMP280_DIG_T1_MSB_REG                0x89
-#define BMP280_DIG_T2_LSB_REG                0x8A
-#define BMP280_DIG_T2_MSB_REG                0x8B
-#define BMP280_DIG_T3_LSB_REG                0x8C
-#define BMP280_DIG_T3_MSB_REG                0x8D
-#define BMP280_DIG_P1_LSB_REG                0x8E
-#define BMP280_DIG_P1_MSB_REG                0x8F
-#define BMP280_DIG_P2_LSB_REG                0x90
-#define BMP280_DIG_P2_MSB_REG                0x91
-#define BMP280_DIG_P3_LSB_REG                0x92
-#define BMP280_DIG_P3_MSB_REG                0x93
-#define BMP280_DIG_P4_LSB_REG                0x94
-#define BMP280_DIG_P4_MSB_REG                0x95
-#define BMP280_DIG_P5_LSB_REG                0x96
-#define BMP280_DIG_P5_MSB_REG                0x97
-#define BMP280_DIG_P6_LSB_REG                0x98
-#define BMP280_DIG_P6_MSB_REG                0x99
-#define BMP280_DIG_P7_LSB_REG                0x9A
-#define BMP280_DIG_P7_MSB_REG                0x9B
-#define BMP280_DIG_P8_LSB_REG                0x9C
-#define BMP280_DIG_P8_MSB_REG                0x9D
-#define BMP280_DIG_P9_LSB_REG                0x9E
-#define BMP280_DIG_P9_MSB_REG                0x9F
- 
-#define BMP280_CHIPID_REG                    0xD0  /*Chip ID Register */
-#define BMP280_RESET_REG                     0xE0  /*Softreset Register */
-#define BMP280_STATUS_REG                    0xF3  /*Status Register */
-#define BMP280_CTRLMEAS_REG                  0xF4  /*Ctrl Measure Register */
-#define BMP280_CONFIG_REG                    0xF5  /*Configuration Register */
-#define BMP280_PRESSURE_MSB_REG              0xF7  /*Pressure MSB Register */
-#define BMP280_PRESSURE_LSB_REG              0xF8  /*Pressure LSB Register */
-#define BMP280_PRESSURE_XLSB_REG             0xF9  /*Pressure XLSB Register */
-#define BMP280_TEMPERATURE_MSB_REG           0xFA  /*Temperature MSB Reg */
-#define BMP280_TEMPERATURE_LSB_REG           0xFB  /*Temperature LSB Reg */
-#define BMP280_TEMPERATURE_XLSB_REG          0xFC  /*Temperature XLSB Reg */
- 
-/* 在foreced mode下，1s的采样周期，温度和气压使用最低的精度采集并且使用最小的滤波器系数,
- * 数据的采集时间大概在6ms，平均功率为3.27uA。
- * */
- 
-/* 在foreced mode下，1s的采样周期, 温度和气压使用最高的精度采集并且使用最大的滤波器系数，
- * 数据的采集时间大概在70ms，平均功率为30uA。
- * */
- 
+
+#include "main.h"
+#include <stdint.h>
+#include <stdbool.h>
+
+/**
+ * BMP280 or BME280 address is 0x77 if SDO pin is high, and is 0x76 if
+ * SDO pin is low.
+ */
+
+#define BMP280_I2C_ADDRESS_0  0x76
+#define BMP280_I2C_ADDRESS_1  0x77
+
+#define BMP280_CHIP_ID  0x58 /* BMP280 has chip-id 0x58 */
+#define BME280_CHIP_ID  0x60 /* BME280 has chip-id 0x60 */
+
+/**
+ * Mode of BMP280 module operation.
+ * Forced - Measurement is initiated by user.
+ * Normal - Continues measurement.
+ */
 typedef enum {
-	BMP280_T_MODE_SKIP = 0x0,	/*skipped*/
-	BMP280_T_MODE_1,			/*x1*/
-	BMP280_T_MODE_2,			/*x2*/
-	BMP280_T_MODE_3,			/*x4*/
-	BMP280_T_MODE_4,			/*x8*/
-	BMP280_T_MODE_5			    /*x16*/
-} BMP280_T_OVERSAMPLING;
- 
+    BMP280_MODE_SLEEP = 0,
+    BMP280_MODE_FORCED = 1,
+    BMP280_MODE_NORMAL = 3
+} BMP280_Mode;
+
 typedef enum {
-	BMP280_SLEEP_MODE = 0x0,
-	BMP280_FORCED_MODE,
-	BMP280_NORMAL_MODE
-} BMP280_WORK_MODE;
- 
+    BMP280_FILTER_OFF = 0,
+    BMP280_FILTER_2 = 1,
+    BMP280_FILTER_4 = 2,
+    BMP280_FILTER_8 = 3,
+    BMP280_FILTER_16 = 4
+} BMP280_Filter;
+
+/**
+ * Pressure oversampling settings
+ */
 typedef enum {
-	BMP280_P_MODE_SKIP = 0x0,	/*skipped*/
-	BMP280_P_MODE_1,			/*x1*/
-	BMP280_P_MODE_2,			/*x2*/
-	BMP280_P_MODE_3,			/*x4*/
-	BMP280_P_MODE_4,			/*x8*/
-	BMP280_P_MODE_5			    /*x16*/
-} BMP280_P_OVERSAMPLING;
- 
+    BMP280_SKIPPED = 0,          /* no measurement  */
+    BMP280_ULTRA_LOW_POWER = 1,  /* oversampling x1 */
+    BMP280_LOW_POWER = 2,        /* oversampling x2 */
+    BMP280_STANDARD = 3,         /* oversampling x4 */
+    BMP280_HIGH_RES = 4,         /* oversampling x8 */
+    BMP280_ULTRA_HIGH_RES = 5    /* oversampling x16 */
+} BMP280_Oversampling;
+
+/**
+ * Stand by time between measurements in normal mode
+ */
 typedef enum {
-	BMP280_FILTER_OFF = 0x0,	/*filter off*/
-	BMP280_FILTER_MODE_1,		/*0.223*ODR*/
-	BMP280_FILTER_MODE_2,		/*0.092*ODR*/
-	BMP280_FILTER_MODE_3,		/*0.042*ODR*/
-	BMP280_FILTER_MODE_4		/*0.021*ODR*/
-} BMP280_FILTER_COEFFICIENT;
- 
-typedef enum {
-	BMP280_T_SB1 = 0x0,	    /*0.5ms*/
-	BMP280_T_SB2,			/*62.5ms*/
-	BMP280_T_SB3,			/*125ms*/
-	BMP280_T_SB4,			/*250ms*/
-	BMP280_T_SB5,			/*500ms*/
-	BMP280_T_SB6,			/*1000ms*/
-	BMP280_T_SB7,			/*2000ms*/
-	BMP280_T_SB8,			/*4000ms*/
-} BMP280_T_SB;
- 
-struct bmp280 {
-	I2C_HandleTypeDef I2cHandle;
-	/* T1~P9 为补偿系数 */
-	uint16_t T1;
-	int16_t	T2;
-	int16_t	T3;
-	uint16_t P1;
-	int16_t	P2;
-	int16_t	P3;
-	int16_t	P4;
-	int16_t	P5;
-	int16_t	P6;
-	int16_t	P7;
-	int16_t	P8;
-	int16_t	P9;
-	int32_t t_fine;
-	uint8_t t_sb;
-	uint8_t mode;
-	uint8_t t_oversampling;
-	uint8_t p_oversampling;
-	uint8_t	filter_coefficient;
-};
- 
-static uint8_t bmp280_read_register(I2C_HandleTypeDef Bmp280_I2cHandle, uint8_t reg_addr)
-{
-    uint8_t reg_data;
+    BMP280_STANDBY_05 = 0,      /* stand by time 0.5ms */
+    BMP280_STANDBY_62 = 1,      /* stand by time 62.5ms */
+    BMP280_STANDBY_125 = 2,     /* stand by time 125ms */
+    BMP280_STANDBY_250 = 3,     /* stand by time 250ms */
+    BMP280_STANDBY_500 = 4,     /* stand by time 500ms */
+    BMP280_STANDBY_1000 = 5,    /* stand by time 1s */
+    BMP280_STANDBY_2000 = 6,    /* stand by time 2s BMP280, 10ms BME280 */
+    BMP280_STANDBY_4000 = 7,    /* stand by time 4s BMP280, 20ms BME280 */
+} BMP280_StandbyTime;
 
-    while(HAL_I2C_Master_Transmit(&Bmp280_I2cHandle, BMP280_ADDRESS, &reg_addr, 1, 10000) != HAL_OK) {
-        if(HAL_I2C_GetError(&Bmp280_I2cHandle) != HAL_I2C_ERROR_AF) {
-            //printf("Transmit slave address error!!!\r\n");
-            return 0;
-        }
-    }
+/**
+ * Configuration parameters for BMP280 module.
+ * Use function bmp280_init_default_params to use default configuration.
+ */
+typedef struct {
+    BMP280_Mode mode;
+    BMP280_Filter filter;
+    BMP280_Oversampling oversampling_pressure;
+    BMP280_Oversampling oversampling_temperature;
+    BMP280_Oversampling oversampling_humidity;
+    BMP280_StandbyTime standby;
+} bmp280_params_t;
 
-    while(HAL_I2C_Master_Receive(&Bmp280_I2cHandle, BMP280_ADDRESS, &reg_data, 1, 10000) != HAL_OK) {
-        if(HAL_I2C_GetError(&Bmp280_I2cHandle) != HAL_I2C_ERROR_AF) {
-           // printf("Receive slave data error!!!\r\n");
-            return 0;
-        }
-    }
 
-    return reg_data;
-}
+typedef struct {
+    uint16_t dig_T1;
+    int16_t  dig_T2;
+    int16_t  dig_T3;
+    uint16_t dig_P1;
+    int16_t  dig_P2;
+    int16_t  dig_P3;
+    int16_t  dig_P4;
+    int16_t  dig_P5;
+    int16_t  dig_P6;
+    int16_t  dig_P7;
+    int16_t  dig_P8;
+    int16_t  dig_P9;
 
-static void bmp280_write_register(I2C_HandleTypeDef Bmp280_I2cHandle, uint8_t reg_addr, uint8_t reg_data)
-{
-    uint8_t tx_data[2] = {reg_addr, reg_data};
+    /* Humidity compensation for BME280 */
+    uint8_t  dig_H1;
+    int16_t  dig_H2;
+    uint8_t  dig_H3;
+    int16_t  dig_H4;
+    int16_t  dig_H5;
+    int8_t   dig_H6;
 
-    while(HAL_I2C_Master_Transmit(&Bmp280_I2cHandle, BMP280_ADDRESS, tx_data, 2, 10000) != HAL_OK) {
-        if(HAL_I2C_GetError(&Bmp280_I2cHandle) != HAL_I2C_ERROR_AF) {
-            //printf("Transmit slave address error!!!\r\n");
-        }
-    }
-}
+    uint16_t addr;
 
-extern struct bmp280 *bmp280_init(I2C_HandleTypeDef I2cHandle);
- 
-extern void bmp280_reset(struct bmp280 *bmp280);
- 
-extern void bmp280_set_standby_time(struct bmp280 *bmp280, BMP280_T_SB t_standby);
- 
-extern void bmp280_set_work_mode(struct bmp280 *bmp280, BMP280_WORK_MODE mode);
- 
-extern void bmp280_set_temperature_oversampling_mode(struct bmp280 *bmp280, BMP280_T_OVERSAMPLING t_osl);
- 
-extern void bmp280_set_pressure_oversampling_mode(struct bmp280 *bmp280, BMP280_P_OVERSAMPLING p_osl);
- 
-extern void bmp280_set_filter_mode(struct bmp280 *bmp280, BMP280_FILTER_COEFFICIENT f_coefficient);
- 
-extern double bmp280_get_temperature(struct bmp280 *bmp280);
- 
-extern double bmp280_get_pressure(struct bmp280 *bmp280);
- 
-extern void bmp280_get_temperature_and_pressure(struct bmp280 *bmp280, double *temperature, double *pressure);
- 
-extern void bmp280_forced_mode_get_temperature_and_pressure(struct bmp280 *bmp280, double *temperature, double *pressure);
- 
-extern void bmp280_demo(I2C_HandleTypeDef I2cHandle, double *temperature, double *pressure);
- 
-#endif
+    I2C_HandleTypeDef* i2c;
+
+    bmp280_params_t params;
+
+    uint8_t  id;        /* Chip ID */
+
+} BMP280_HandleTypedef;
+
+/**
+ * Initialize default parameters.
+ * Default configuration:
+ *      mode: NORAML
+ *      filter: OFF
+ *      oversampling: x4
+ *      standby time: 250ms
+ */
+void bmp280_init_default_params(bmp280_params_t *params);
+
+/**
+ * Initialize BMP280 module, probes for the device, soft resets the device,
+ * reads the calibration constants, and configures the device using the supplied
+ * parameters. Returns true on success otherwise false.
+ *
+ * The I2C address is assumed to have been initialized in the dev, and
+ * may be either BMP280_I2C_ADDRESS_0 or BMP280_I2C_ADDRESS_1. If the I2C
+ * address is unknown then try initializing each in turn.
+ *
+ * This may be called again to soft reset the device and initialize it again.
+ */
+bool bmp280_init(BMP280_HandleTypedef *dev, bmp280_params_t *params);
+
+/**
+ * Start measurement in forced mode.
+ * The module remains in forced mode after this call.
+ * Do not call this method in normal mode.
+ */
+bool bmp280_force_measurement(BMP280_HandleTypedef *dev);
+
+/**
+ * Check if BMP280 is busy with measuring temperature/pressure.
+ * Return true if BMP280 is busy.
+ */
+bool bmp280_is_measuring(BMP280_HandleTypedef *dev);
+
+/**
+ * Read compensated temperature and pressure data:
+ *
+ *  Temperature in degrees Celsius times 100.
+ *
+ *  Pressure in Pascals in fixed point 24 bit integer 8 bit fraction format.
+ *
+ *  Humidity is optional and only read for the BME280, in percent relative
+ *  humidity as a fixed point 22 bit interger and 10 bit fraction format.
+ */
+bool bmp280_read_fixed(BMP280_HandleTypedef *dev, int32_t *temperature,
+                       uint32_t *pressure, uint32_t *humidity);
+
+/**
+ * Read compensated temperature and pressure data:
+ *  Temperature in degrees Celsius.
+ *  Pressure in Pascals.
+ *  Humidity is optional and only read for the BME280, in percent relative
+ *  humidity.
+ */
+bool bmp280_read_float(BMP280_HandleTypedef *dev, float *temperature,
+                       float *pressure, float *humidity);
+
+
+#endif  // __BMP280_H__

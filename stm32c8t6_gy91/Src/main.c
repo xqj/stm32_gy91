@@ -50,7 +50,12 @@ DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
+BMP280_HandleTypedef bmp280;
 
+float pressure, temperature, humidity;
+
+uint16_t size;
+uint8_t Data[256];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,37 +105,48 @@ int main(void)
     MX_I2C1_Init();
     MX_USART1_UART_Init();
     /* USER CODE BEGIN 2 */
-    struct bmp280 *bmp280_data;
-
-
-    bmp280_data =bmp280_init(hi2c1);
-    if(bmp280_data!=NULL) {
-        uint8_t ctr_reg = 0;
-        uint8_t status_reg = 0;
-
-        int32_t tem = 0;
-        uint32_t pressure = 0;
-        /* USER CODE END 2 */
-
-        /* Infinite loop */
-        /* USER CODE BEGIN WHILE */
-        bmp280_reset(bmp280_data);
-        ctr_reg = bmp280_read_register(hi2c1, 0xF4);
-        bmp280_write_register(hi2c1, 0xF4, 0xFF);
-        bmp280_write_register(hi2c1, 0xF5, 0x14);
-        HAL_Delay(100);
-        while (1)
-        {
-            ctr_reg = bmp280_read_register(hi2c1, 0xF4);
-            status_reg = bmp280_read_register(hi2c1, 0xF3);
-            tem = bmp280_get_temperature(bmp280_data);
-            pressure = bmp280_get_pressure(bmp280_data);
-            HAL_Delay(2000);
-            /* USER CODE END WHILE */
-
-            /* USER CODE BEGIN 3 */
-        }
+    bmp280_init_default_params(&bmp280.params);
+    bmp280.addr = BMP280_I2C_ADDRESS_0;
+    bmp280.i2c = &hi2c1;
+    while (!bmp280_init(&bmp280, &bmp280.params)) {
+        //size = sprintf((char *)Data, "BMP280 initialization failed\n");
+        //HAL_UART_Transmit(&huart1, Data, size, 1000);
+        HAL_Delay(2000);
     }
+    bool bme280p = bmp280.id == BME280_CHIP_ID;
+
+    /* USER CODE END 2 */
+
+    /* Infinite loop */
+    /* USER CODE BEGIN WHILE */
+
+    while (1)
+    {
+
+        /* USER CODE END WHILE */
+
+        /* USER CODE BEGIN 3 */
+        HAL_Delay(100);
+        while (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {
+            //size = sprintf((char *)Data,"Temperature/pressure reading failed\n");
+            HAL_UART_Transmit(&huart1, Data, size, 1000);
+            HAL_Delay(2000);
+        }
+
+        //size = sprintf((char *)Data,"Pressure: %.2f Pa, Temperature: %.2f C",pressure, temperature);
+        //HAL_UART_Transmit(&huart1, Data, size, 1000);
+        if (bme280p) {
+            //size = sprintf((char *)Data,", Humidity: %.2f\n", humidity);
+            //HAL_UART_Transmit(&huart1, Data, size, 1000);
+        }
+
+        else {
+            //size = sprintf((char *)Data, "\n");
+            //HAL_UART_Transmit(&huart1, Data, size, 1000);
+        }
+        HAL_Delay(2000);
+    }
+
     /* USER CODE END 3 */
 }
 
