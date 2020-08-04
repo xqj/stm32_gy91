@@ -5,6 +5,86 @@
  *      Author: Desert
  */
 #include "mpu9250.h"
+#include "i2c.h"
+
+#define _MPU9250_I2C		hi2c1
+#define DEVICE_ADD			208
+uint8_t READWRITE_CMD = 0x80;
+uint8_t MULTIPLEBYTE_CMD = 0x40;
+uint8_t DUMMY_BYTE = 0x00;
+uint16_t _dev_add = 208;
+uint8_t ACCEL_OUT = 0x3B;
+uint8_t GYRO_OUT = 0x43;
+uint8_t TEMP_OUT = 0x41;
+uint8_t EXT_SENS_DATA_00 = 0x49;
+uint8_t ACCEL_CONFIG = 0x1C;
+uint8_t ACCEL_FS_SEL_2G = 0x00;
+uint8_t ACCEL_FS_SEL_4G = 0x08;
+uint8_t ACCEL_FS_SEL_8G = 0x10;
+uint8_t ACCEL_FS_SEL_16G = 0x18;
+uint8_t GYRO_CONFIG = 0x1B;
+uint8_t GYRO_FS_SEL_250DPS = 0x00;
+uint8_t GYRO_FS_SEL_500DPS = 0x08;
+uint8_t GYRO_FS_SEL_1000DPS = 0x10;
+uint8_t GYRO_FS_SEL_2000DPS = 0x18;
+uint8_t ACCEL_CONFIG2 = 0x1D;
+uint8_t DLPF_184 = 0x01;
+uint8_t DLPF_92 = 0x02;
+uint8_t DLPF_41 = 0x03;
+uint8_t DLPF_20 = 0x04;
+uint8_t DLPF_10 = 0x05;
+uint8_t DLPF_5 = 0x06;
+uint8_t CONFIG = 0x1A;
+uint8_t SMPDIV = 0x19;
+uint8_t INT_PIN_CFG = 0x37;
+uint8_t INT_ENABLE = 0x38;
+uint8_t INT_DISABLE = 0x00;
+uint8_t INT_PULSE_50US = 0x00;
+uint8_t INT_WOM_EN = 0x40;
+uint8_t INT_RAW_RDY_EN = 0x01;
+uint8_t PWR_MGMNT_1 = 0x6B;
+uint8_t PWR_CYCLE = 0x20;
+uint8_t PWR_RESET = 0x80;
+uint8_t CLOCK_SEL_PLL = 0x01;
+uint8_t PWR_MGMNT_2 = 0x6C;
+uint8_t SEN_ENABLE = 0x00;
+uint8_t DIS_GYRO = 0x07;
+uint8_t USER_CTRL = 0x6A;
+uint8_t I2C_MST_EN = 0x20;
+uint8_t I2C_MST_CLK = 0x0D;
+uint8_t I2C_MST_CTRL = 0x24;
+uint8_t I2C_SLV0_ADDR = 0x25;
+uint8_t I2C_SLV0_REG = 0x26;
+uint8_t I2C_SLV0_DO = 0x63;
+uint8_t I2C_SLV0_CTRL = 0x27;
+uint8_t I2C_SLV0_EN = 0x80;
+uint8_t I2C_READ_FLAG = 0x80;
+uint8_t MOT_DETECT_CTRL = 0x69;
+uint8_t ACCEL_INTEL_EN = 0x80;
+uint8_t ACCEL_INTEL_MODE = 0x40;
+uint8_t LP_ACCEL_ODR = 0x1E;
+uint8_t WOM_THR = 0x1F;
+uint8_t WHO_AM_I = 0x75;
+uint8_t FIFO_EN = 0x23;
+uint8_t FIFO_TEMP = 0x80;
+uint8_t FIFO_GYRO = 0x70;
+uint8_t FIFO_ACCEL = 0x08;
+uint8_t FIFO_MAG = 0x01;
+uint8_t FIFO_COUNT = 0x72;
+uint8_t FIFO_READ = 0x74;
+
+// AK8963 registers
+uint8_t AK8963_I2C_ADDR = 0x0C;
+uint8_t AK8963_HXL = 0x03;
+uint8_t AK8963_CNTL1 = 0x0A;
+uint8_t AK8963_PWR_DOWN = 0x00;
+uint8_t AK8963_CNT_MEAS1 = 0x12;
+uint8_t AK8963_CNT_MEAS2 = 0x16;
+uint8_t AK8963_FUSE_ROM = 0x0F;
+uint8_t AK8963_CNTL2 = 0x0B;
+uint8_t AK8963_RESET = 0x01;
+uint8_t AK8963_ASA = 0x10;
+uint8_t AK8963_WHO_AM_I = 0x00;
 
 static uint8_t _buffer[21];
 static uint8_t _mag_adjust[3];
